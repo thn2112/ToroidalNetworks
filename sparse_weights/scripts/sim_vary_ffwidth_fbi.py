@@ -18,11 +18,11 @@ import dmft as dmft
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--width_idx', '-w',  help='which width', type=int, default=0)
-parser.add_argument('--J_idx', '-j',  help='which J', type=int, default=0)
+parser.add_argument('--fbi_idx', '-f',  help='which feedback inhibition strength', type=int, default=0)
 args = vars(parser.parse_args())
 print(parser.parse_args())
 width_idx= args['width_idx']
-J_idx= args['J_idx']
+fbi_idx= args['fbi_idx']
 
 id = None
 if id is None:
@@ -80,15 +80,15 @@ prms['NI'] = NI
 seeds = np.arange(100)
 
 widths = 4**(2*np.arange(0,6+1)/6 - 1)
-Js = J*8**(2*np.arange(0,6+1)/6 - 2/3)
+fbis = 2**(2*np.arange(0,6+1)/6 - 5/3)
 
 print('simulating width # '+str(width_idx+1))
 print('')
 width = widths[width_idx]
 
-print('simulating J # '+str(J_idx+1))
+print('simulating fbi # '+str(fbi_idx+1))
 print('')
-newJ = Js[J_idx]
+fbi = fbis[fbi_idx]
 
 cA = aXs[-1]/bX
 rX = bX
@@ -199,12 +199,12 @@ def simulate_networks(prms,rX,cA,CVh):
 print('simulating baseline fraction network')
 print('')
 this_prms = prms.copy()
-this_prms['J'] = newJ
+this_prms['J'] /= fbi
+this_prms['gE'] *= fbi**2
+this_prms['gI'] /= fbi**2
+this_prms['beta'] /= fbi**2
 this_prms['SoriF'] *= width
 this_prms['baseinp'] = dmft.wrapnormdens(90,this_prms['SoriF']) / dmft.wrapnormdens(0,this_prms['SoriF'])
-
-# correct for non-Gaussian shape by adapting recurrent widths
-this_prms['SoriI'] *= np.sqrt(width)
 # this_prms['basefrac'] = 1-width
 
 net,rs,mus,muEs,muIs,Ls,TOs = simulate_networks(this_prms,rX,cA,CVh)
