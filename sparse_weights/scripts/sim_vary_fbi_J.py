@@ -79,7 +79,7 @@ prms['NI'] = NI
 
 seeds = np.arange(100)
 
-fbis = 2**(2*np.arange(0,6+1)/6 - 5/3)
+fbis = 1.1**(2*np.arange(0,6+1)/6 - 5/3)#2**(2*np.arange(0,6+1)/6 - 5/3)
 Js = J*8**(2*np.arange(0,6+1)/6 - 2/3)
 
 print('simulating fbi # '+str(fbi_idx+1))
