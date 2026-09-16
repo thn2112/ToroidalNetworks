@@ -204,7 +204,8 @@ this_prms['SoriF'] *= width
 this_prms['baseinp'] = dmft.wrapnormdens(90,this_prms['SoriF']) / dmft.wrapnormdens(0,this_prms['SoriF'])
 
 # correct for non-Gaussian shape by adapting recurrent widths
-this_prms['SoriI'] *= np.sqrt(width)
+J_mult = newJ / prms["J"]
+this_prms['SoriI'] *= np.fmin(1,width)**0.25 / np.fmax(1,J_mult)**0.125
 # this_prms['basefrac'] = 1-width
 
 net,rs,mus,muEs,muIs,Ls,TOs = simulate_networks(this_prms,rX,cA,CVh)

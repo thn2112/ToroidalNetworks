@@ -205,6 +205,9 @@ this_prms['gI'] /= fbi**2
 this_prms['beta'] /= fbi**2
 this_prms['SoriF'] *= width
 this_prms['baseinp'] = dmft.wrapnormdens(90,this_prms['SoriF']) / dmft.wrapnormdens(0,this_prms['SoriF'])
+
+# correct for non-Gaussian shape by adapting recurrent widths
+this_prms['SoriI'] *= np.sqrt(np.fmin(1,width))
 # this_prms['basefrac'] = 1-width
 
 net,rs,mus,muEs,muIs,Ls,TOs = simulate_networks(this_prms,rX,cA,CVh)

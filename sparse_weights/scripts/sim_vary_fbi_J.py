@@ -205,6 +205,10 @@ this_prms['gI'] /= fbi**2
 this_prms['beta'] /= fbi**2
 # this_prms['basefrac'] = 1-width
 
+# correct for non-Gaussian shape by adapting recurrent widths
+J_mult = newJ / prms["J"]
+this_prms['SoriI'] /= np.fmax(1,J_mult)**0.125
+
 net,rs,mus,muEs,muIs,Ls,TOs = simulate_networks(this_prms,rX,cA,CVh)
 
 start = time.process_time()
