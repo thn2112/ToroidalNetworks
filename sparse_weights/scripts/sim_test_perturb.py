@@ -201,6 +201,7 @@ def simulate_networks(prms,aX):
 print('simulating baseline fraction network')
 print('')
 
+norm_mins = np.zeros((len(aXs),4))
 means = np.zeros((len(aXs),3))
 stds = np.zeros((len(aXs),3))
 
@@ -208,6 +209,23 @@ for aX_idx,aX in enumerate(aXs):
     start = time.process_time()
     
     net,rs,mus,muXs,muEs,muIs,Ls,TOs = simulate_networks(prms,aX)
+    
+    μrEs = np.zeros((len(seeds),2,Nori))
+    μrIs = np.zeros((len(seeds),2,Nori))
+    for nloc in range(Nori):
+        μrEs[:,:,nloc] = np.mean(rs[:,:,net.C_idxs[0][nloc]],axis=-1)
+        μrIs[:,:,nloc] = np.mean(rs[:,:,net.C_idxs[1][nloc]],axis=-1)
+    μrEs = np.mean(μrEs,0)
+    μrIs = np.mean(μrIs,0)
+    
+    norm_mins[aX_idx,:2] = np.min(μrEs,1)
+    norm_mins[aX_idx,:2] -= μrEs[:,Nori//2]
+    norm_mins[aX_idx,:2] /= (μrEs[:,0] - μrEs[:,Nori//2])
+    
+    norm_mins[aX_idx,2:] = np.min(μrIs,1)
+    norm_mins[aX_idx,2:] -= μrIs[:,Nori//2]
+    norm_mins[aX_idx,2:] /= (μrIs[:,0] - μrIs[:,Nori//2])
+    
     seed_mask = np.logical_not(np.any(TOs,axis=-1))
     if aX_idx == 0:
         vsm_mask = np.arange(N)
@@ -238,6 +256,7 @@ monk_opto_stds_err =    np.array([ 6.47,  5.90,  6.20,  4.93,  4.74])
 monk_diff_means_err =   np.array([ 5.90,  5.84,  6.28,  5.75,  5.76])
 monk_diff_stds_err =    np.array([ 8.74,  8.01, 10.04,  8.51,  8.94])
 
+norm_min_itp = PchipInterpolator(aXs, norm_mins,extrapolate=True)
 mean_itp = PchipInterpolator(aXs, means,extrapolate=True)
 std_itp = PchipInterpolator(aXs, stds,extrapolate=True)
 
@@ -256,6 +275,7 @@ x0 = np.linspace(0,1,monk_nc+1)[1:]
 results = least_squares(residuals,x0)
 best_aXs = results.x
 
+best_norm_mins = np.concatenate([norm_mins[0:1,:], norm_min_itp(best_aXs)],axis=0)
 best_means = np.concatenate([means[0:1,:], mean_itp(best_aXs)],axis=0)
 best_stds = np.concatenate([stds[0:1,:], std_itp(best_aXs)],axis=0)
 cost = results.cost
@@ -267,6 +287,7 @@ res_dict = {}
     
 res_dict['prms'] = prms
 res_dict['best_aXs'] = best_aXs
+res_dict['best_norm_mins'] = best_norm_mins
 res_dict['best_means'] = best_means
 res_dict['best_stds'] = best_stds
 res_dict['cost'] = cost
