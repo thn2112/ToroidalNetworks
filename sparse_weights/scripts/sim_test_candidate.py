@@ -54,7 +54,7 @@ prms['Nori'] = Nori
 prms['NE'] = NE
 prms['NI'] = NI
 
-seeds = np.arange(1)#100)
+seeds = np.arange(100)
 
 print('simulating contrast # '+str(c_idx+1))
 print('')
@@ -223,7 +223,7 @@ for nloc in range(Nori):
 Lexps[:,:,:] = Ls
 timeouts[:,:,:] = TOs
 
-seed_mask = np.logical_not(np.any(timeouts,axis=-1))
+seed_mask = np.logical_not(np.any(timeouts,axis=(-2,-1)))
 vsm_mask = net.get_oriented_neurons(delta_ori=4.5)[0]
 osm_mask = net.get_oriented_neurons(delta_ori=4.5,vis_ori=90)[0]
 
@@ -231,36 +231,36 @@ base_rates = rs[:,:,0,:]
 opto_rates = rs[:,:,1,:]
 diff_rates = opto_rates - base_rates
 
-all_base_means = np.mean(base_rates[seed_mask,:],(-2,-1))
-all_base_stds = np.std(base_rates[seed_mask,:],(-2,-1))
-all_opto_means = np.mean(opto_rates[seed_mask,:],(-2,-1))
-all_opto_stds = np.std(opto_rates[seed_mask,:],(-2,-1))
-all_diff_means = np.mean(diff_rates[seed_mask,:],(-2,-1))
-all_diff_stds = np.std(diff_rates[seed_mask,:],(-2,-1))
+all_base_means = np.mean(base_rates[seed_mask,:],(0,-1))
+all_base_stds = np.std(base_rates[seed_mask,:],(0,-1))
+all_opto_means = np.mean(opto_rates[seed_mask,:],(0,-1))
+all_opto_stds = np.std(opto_rates[seed_mask,:],(0,-1))
+all_diff_means = np.mean(diff_rates[seed_mask,:],(0,-1))
+all_diff_stds = np.std(diff_rates[seed_mask,:],(0,-1))
 # all_norm_covs = np.cov(base_rates[seed_mask,:].flatten(),
 #     diff_rates[seed_mask,:].flatten())[0,1] / all_diff_stds**2
 # all_bals = np.mean(np.abs(mus[seed_mask,0,:])/muEs[seed_mask,0,:])
 # all_oves = np.mean((muXs[seed_mask,1,:]-muXs[seed_mask,0,:])/muEs[seed_mask,0,:])
 # all_ovxs = np.mean(muXs[seed_mask,1,:]/muXs[seed_mask,0,:]-1)
 
-vsm_base_means = np.mean(base_rates[seed_mask,:][:,vsm_mask])
-vsm_base_stds = np.std(base_rates[seed_mask,:][:,vsm_mask])
-vsm_opto_means = np.mean(opto_rates[seed_mask,:][:,vsm_mask])
-vsm_opto_stds = np.std(opto_rates[seed_mask,:][:,vsm_mask])
-vsm_diff_means = np.mean(diff_rates[seed_mask,:][:,vsm_mask])
-vsm_diff_stds = np.std(diff_rates[seed_mask,:][:,vsm_mask])
-# vsm_norm_covs = np.cov(base_rates[seed_mask,:][:,vsm_mask].flatten(),
-#     diff_rates[seed_mask,:][:,vsm_mask].flatten())[0,1] / vsm_diff_stds**2
-# vsm_bals = np.mean(np.abs(mus[seed_mask,0,:][:,vsm_mask])/muEs[seed_mask,0,:][:,vsm_mask])
-# vsm_oves = np.mean((muXs[seed_mask,1,:][:,vsm_mask]-muXs[seed_mask,0,:][:,vsm_mask])/muEs[seed_mask,0,:][:,vsm_mask])
-# vsm_ovxs = np.mean(muXs[seed_mask,1,:][:,vsm_mask]/muXs[seed_mask,0,:][:,vsm_mask]-1)
+vsm_base_means = np.mean(base_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+vsm_base_stds = np.std(base_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+vsm_opto_means = np.mean(opto_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+vsm_opto_stds = np.std(opto_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+vsm_diff_means = np.mean(diff_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+vsm_diff_stds = np.std(diff_rates[seed_mask,:][:,:,vsm_mask],(0,-1))
+# vsm_norm_covs = np.cov(base_rates[seed_mask,:][:,:,vsm_mask].flatten(),
+#     diff_rates[seed_mask,:][:,:,vsm_mask].flatten())[0,1] / vsm_diff_stds**2
+# vsm_bals = np.mean(np.abs(mus[seed_mask,0,:][:,:,vsm_mask])/muEs[seed_mask,0,:][:,:,vsm_mask])
+# vsm_oves = np.mean((muXs[seed_mask,1,:][:,:,vsm_mask]-muXs[seed_mask,0,:][:,:,vsm_mask])/muEs[seed_mask,0,:][:,:,vsm_mask])
+# vsm_ovxs = np.mean(muXs[seed_mask,1,:][:,:,vsm_mask]/muXs[seed_mask,0,:][:,:,vsm_mask]-1)
 
-osm_base_means = np.mean(base_rates[seed_mask,:][:,osm_mask])
-osm_base_stds = np.std(base_rates[seed_mask,:][:,osm_mask])
-osm_opto_means = np.mean(opto_rates[seed_mask,:][:,osm_mask])
-osm_opto_stds = np.std(opto_rates[seed_mask,:][:,osm_mask])
-osm_diff_means = np.mean(diff_rates[seed_mask,:][:,osm_mask])
-osm_diff_stds = np.std(diff_rates[seed_mask,:][:,osm_mask])
+osm_base_means = np.mean(base_rates[seed_mask,:][:,:,osm_mask],(0,-1))
+osm_base_stds = np.std(base_rates[seed_mask,:][:,:,osm_mask],(0,-1))
+osm_opto_means = np.mean(opto_rates[seed_mask,:][:,:,osm_mask],(0,-1))
+osm_opto_stds = np.std(opto_rates[seed_mask,:][:,:,osm_mask],(0,-1))
+osm_diff_means = np.mean(diff_rates[seed_mask,:][:,:,osm_mask],(0,-1))
+osm_diff_stds = np.std(diff_rates[seed_mask,:][:,:,osm_mask],(0,-1))
 # osm_norm_covs = np.cov(base_rates[seed_mask,:][:,osm_mask].flatten(),
 #     diff_rates[seed_mask,:][:,osm_mask].flatten())[0,1] / osm_diff_stds**2
 # osm_bals = np.mean(np.abs(mus[seed_mask,0,:][:,osm_mask])/muEs[seed_mask,0,:][:,osm_mask])
