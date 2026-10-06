@@ -123,7 +123,7 @@ normCEs = np.zeros((3,Nori))
 normCIs = np.zeros((3,Nori))
 convs = np.zeros((2,3)).astype(bool)
 
-def predict_networks(prms,rX,cA,CVh,dori=90):    
+def predict_networks(prms,rX,cA,CVh,dori=45):    
     tau = np.array([ri.tE,ri.tI],dtype=np.float32)
     W = prms['J']*np.array([[1,-prms['gE']],[1./prms['beta'],-prms['gI']/prms['beta']]],dtype=np.float32)
     Ks = (1-prms.get('basefrac',0))*np.array([prms['K'],prms['K']/4],dtype=np.float32)
