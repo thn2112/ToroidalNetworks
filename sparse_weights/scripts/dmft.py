@@ -3179,7 +3179,7 @@ def run_two_stage_2feat_ring_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sa=15,d
 
     full_Cdrb,full_Cdra,full_Cdrp,\
         convdb,convda,convdp = diff_sparse_2feat_ring_dmft(tau,W,Ks,Hb,Hp,eH,sW,sH,sa,diff_R,Twrm,Tsav,dt,
-                                                           rb,ra,rp,Crb,Cra,Crp,Kb=Kbs,dori=dori,L=L,mualt_tau=prms.get('mult_tau',True))
+                                                           rb,ra,rp,Crb,Cra,Crp,Kb=Kbs,dori=dori,L=L,mult_tau=prms.get('mult_tau',True))
 
     print('integrating second stage took',time.process_time() - start,'s')
 

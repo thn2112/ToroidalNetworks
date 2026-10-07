@@ -422,7 +422,7 @@ res_dict['osm_diff_stds'] = osm_diff_stds
 res_dict['osm_norm_covs'] = osm_norm_covs
 res_dict['dmft_res'] = dmft_res
 
-res_file = './../results/dmft_opto_norm_id_{:s}'.format(str(id))
+res_file = './../results/dmft_opto_norm_45_id_{:s}'.format(str(id))
 if not np.isclose(SoriE_mult,1.0):
     res_file = res_file + '_SoriEx{:.2f}'.format(SoriE_mult)
 if not np.isclose(SoriI_mult,1.0):
