@@ -77,10 +77,10 @@ prms['Nori'] = Nori
 prms['NE'] = NE
 prms['NI'] = NI
 
-seeds = np.arange(100)
+seeds = np.arange(50)
 
 widths = 4**(2*np.arange(0,6+1)/6 - 1)
-Js = J*8**(2*np.arange(0,6+1)/6 - 2/3)
+Js = J*8**(2*np.arange(0,6+1)/6 - 1)
 
 print('simulating width # '+str(width_idx+1))
 print('')
@@ -204,8 +204,8 @@ this_prms['SoriF'] *= width
 this_prms['baseinp'] = dmft.wrapnormdens(90,this_prms['SoriF']) / dmft.wrapnormdens(0,this_prms['SoriF'])
 
 # correct for non-Gaussian shape by adapting recurrent widths
-J_mult = newJ / prms["J"]
-this_prms['SoriI'] *= np.fmin(1,width)**0.25 / np.fmax(1,J_mult)**0.125
+# J_mult = newJ / prms["J"]
+# this_prms['SoriI'] *= np.fmin(1,width)**0.25# / np.fmax(1,J_mult)**0.125
 # this_prms['basefrac'] = 1-width
 
 net,rs,mus,muEs,muIs,Ls,TOs = simulate_networks(this_prms,rX,cA,CVh)
