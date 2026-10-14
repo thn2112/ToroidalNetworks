@@ -92,6 +92,8 @@ rX = bX
 ΣhIs = np.zeros((4,Nori))
 balEs = np.zeros((2,Nori))
 balIs = np.zeros((2,Nori))
+balE_rects = np.zeros((2,Nori))
+balI_rects = np.zeros((2,Nori))
 normCEs = np.zeros((3,Nori))
 normCIs = np.zeros((3,Nori))
 convs = np.zeros((2,3)).astype(bool)
@@ -267,7 +269,7 @@ def predict_networks(prms,rX,cA,CVh):
 def calc_bal(μmuE,μmuI,ΣmuE,ΣmuI,N=10000):
     muEs = np.fmax(μmuE + np.sqrt(ΣmuE)*np.random.randn(N),1e-12)
     muIs = np.fmin(μmuI + np.sqrt(ΣmuI)*np.random.randn(N),-1e-12)
-    return np.mean(np.fmax(0,muEs+muIs)/muEs)
+    return np.mean(muEs+muIs)/np.mean(muEs), np.mean(np.fmax(0,muEs+muIs)/muEs)
 
 # Simulate zero and full contrast networks with ring connectivity
 print('simulating baseline fraction network')
@@ -290,8 +292,8 @@ start = time.process_time()
 ΣhEs[:] = Σmus[0]
 ΣhIs[:] = Σmus[1]
 for nloc in range(Nori):
-    balEs[:,nloc] = calc_bal(μmuEs[0,0,nloc],μmuIs[0,0,nloc],ΣmuEs[0,0,nloc],ΣmuIs[0,0,nloc])
-    balIs[:,nloc] = calc_bal(μmuEs[1,0,nloc],μmuIs[1,0,nloc],ΣmuEs[1,0,nloc],ΣmuIs[1,0,nloc])
+    balEs[:,nloc],balE_rects[:,nloc] = calc_bal(μmuEs[0,0,nloc],μmuIs[0,0,nloc],ΣmuEs[0,0,nloc],ΣmuIs[0,0,nloc])
+    balIs[:,nloc],balI_rects[:,nloc] = calc_bal(μmuEs[1,0,nloc],μmuIs[1,0,nloc],ΣmuEs[1,0,nloc],ΣmuIs[1,0,nloc])
 normCEs[:] = normC[0]
 normCIs[:] = normC[1]
 convs[:] = conv
@@ -354,6 +356,8 @@ res_dict['ΣhEs'] = ΣhEs
 res_dict['ΣhIs'] = ΣhIs
 res_dict['balEs'] = balEs
 res_dict['balIs'] = balIs
+res_dict['balE_rects'] = balE_rects
+res_dict['balI_rects'] = balI_rects
 res_dict['normCEs'] = normCEs
 res_dict['normCIs'] = normCIs
 res_dict['convs'] = convs

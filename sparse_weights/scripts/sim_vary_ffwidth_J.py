@@ -111,6 +111,8 @@ rX = bX
 ΣhIIs = np.zeros((len(seeds),2,Nori))
 balEs = np.zeros((len(seeds),2,Nori))
 balIs = np.zeros((len(seeds),2,Nori))
+balE_rects = np.zeros((len(seeds),2,Nori))
+balI_rects = np.zeros((len(seeds),2,Nori))
 Lexps = np.zeros((len(seeds),2))
 timeouts = np.zeros((len(seeds),2)).astype(bool)
 
@@ -229,8 +231,10 @@ for nloc in range(Nori):
     ΣhIEs[:,:2,nloc] = np.var(muEs[:,:,net.C_idxs[1][nloc]],axis=-1)
     ΣhEIs[:,:2,nloc] = np.var(muIs[:,:,net.C_idxs[0][nloc]],axis=-1)
     ΣhIIs[:,:2,nloc] = np.var(muIs[:,:,net.C_idxs[1][nloc]],axis=-1)
-    balEs[:,:,nloc] = np.mean(np.abs(mus[:,:,net.C_idxs[0][nloc]])/muEs[:,:,net.C_idxs[0][nloc]],axis=-1)
-    balIs[:,:,nloc] = np.mean(np.abs(mus[:,:,net.C_idxs[1][nloc]])/muEs[:,:,net.C_idxs[1][nloc]],axis=-1)
+    balEs[:,:,nloc] = np.mean(mus[:,:,net.C_idxs[0][nloc]],axis=-1)/np.mean(muEs[:,:,net.C_idxs[0][nloc]],axis=-1)
+    balIs[:,:,nloc] = np.mean(mus[:,:,net.C_idxs[1][nloc]],axis=-1)/np.mean(muEs[:,:,net.C_idxs[1][nloc]],axis=-1)
+    balE_rects[:,:,nloc] = np.mean(np.fmax(0,mus[:,:,net.C_idxs[0][nloc]])/muEs[:,:,net.C_idxs[0][nloc]],axis=-1)
+    balI_rects[:,:,nloc] = np.mean(np.fmax(0,mus[:,:,net.C_idxs[1][nloc]])/muEs[:,:,net.C_idxs[1][nloc]],axis=-1)
 
     μrEs[:,2,nloc] = np.mean(rs[:,1,net.C_idxs[0][nloc]]-rs[:,0,net.C_idxs[0][nloc]],axis=-1)
     μrIs[:,2,nloc] = np.mean(rs[:,1,net.C_idxs[1][nloc]]-rs[:,0,net.C_idxs[1][nloc]],axis=-1)
@@ -307,6 +311,8 @@ res_dict['ΣhIEs'] = ΣhIEs
 res_dict['ΣhIIs'] = ΣhIIs
 res_dict['balEs'] = balEs
 res_dict['balIs'] = balIs
+res_dict['balE_rects'] = balE_rects
+res_dict['balI_rects'] = balI_rects
 res_dict['Lexps'] = Lexps
 res_dict['all_base_means'] = all_base_means
 res_dict['all_base_stds'] = all_base_stds
