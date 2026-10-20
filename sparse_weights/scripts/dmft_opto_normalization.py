@@ -200,7 +200,7 @@ def predict_networks(prms,rX,cA,CVh,dori=90):
         conv[:,2] = res_dict['convd']
         dmft_res = res_dict.copy()
     else:
-        res_dict = dmft.run_two_stage_2feat_ring_dmft(prms,rX,cA,CVh,'./../results',ri,Twrm,Tsav,dt)
+        res_dict = dmft.run_two_stage_2feat_ring_dmft(prms,rX,cA,CVh,'./../results',ri,Twrm,Tsav,dt,dori=dori)
         rvb = res_dict['rb'][:2]
         rvp = res_dict['rp'][:2]
         srv = res_dict['sr'][:2]
