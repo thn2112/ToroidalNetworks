@@ -2048,6 +2048,586 @@ def run_coupled_two_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,L=180,
     
     return res_dict
 
+def _two_site_muW(muW,muWb,sW2,sr,L=180):
+    sr = sr[:2]
+    sWr = np.sqrt(sW2+sr**2)
+
+    muWbb = (1 - struct_fact(L/2,sWr,sr,L)) * muW + (1 - unstruct_fact(sr,L)) * muWb
+    muWbp = struct_fact(L/2,sWr,sr,L) * muW + unstruct_fact(sr,L) * muWb
+    muWpb = (1 - struct_fact(0,sWr,sr,L)) * muW + (1 - unstruct_fact(sr,L)) * muWb
+    muWpp = struct_fact(0,sWr,sr,L) * muW + unstruct_fact(sr,L) * muWb
+
+    return np.block([[muWbb,muWbp],[muWpb,muWpp]])
+
+def _two_site_SigW(SigW,SigWb,sW2,sCr,L=180):
+    sCr = sCr[:2]
+    sWCr = np.sqrt(sW2+sCr**2)
+
+    SigWbb = (1 - struct_fact(L/2,sWCr,sCr,L)) * SigW + (1 - unstruct_fact(sCr,L)) * SigWb
+    SigWbp = struct_fact(L/2,sWCr,sCr,L) * SigW + unstruct_fact(sCr,L) * SigWb
+    SigWpb = (1 - struct_fact(0,sWCr,sCr,L)) * SigW + (1 - unstruct_fact(sCr,L)) * SigWb
+    SigWpp = struct_fact(0,sWCr,sCr,L) * SigW + unstruct_fact(sCr,L) * SigWb
+
+    return np.block([[SigWbb,SigWbp],[SigWpb,SigWpp]])
+
+def run_first_stage_two_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,L=180,which='both',return_full=False):
+    Nsav = round(Tsav/dt)+1
+
+    K = prms['K']
+    SoriE = prms['SoriE']
+    SoriI = prms['SoriI']
+    J = prms['J']
+    beta = prms['beta']
+    gE = prms['gE']
+    gI = prms['gI']
+    hE = prms['hE']
+    hI = prms['hI']
+    basefrac = prms.get('basefrac',0)
+    baseinp = prms.get('baseinp',0)
+    baseprob = prms.get('baseprob',0)
+    Hpert = prms.get('pert',np.zeros(2,dtype=np.float32))
+
+    tau = np.array([rc.tE,rc.tI],dtype=np.float32)
+    W = J*np.array([[1,-gE],[1./beta,-gI/beta]],dtype=np.float32)
+    Ks =    (1-basefrac)*(1-baseprob) *np.array([K,K/4],dtype=np.float32)
+    Kbs =(1-(1-basefrac)*(1-baseprob))*np.array([K,K/4],dtype=np.float32)
+    Hb = rX*(1+(1-(1-basefrac)*(1-baseinp))*cA)*K*J*np.array([hE,hI/beta],dtype=np.float32) + Hpert
+    Hp = rX*(1+                             cA)*K*J*np.array([hE,hI/beta],dtype=np.float32) + Hpert
+    eH = CVh
+    sW = np.array([[SoriE,SoriI],[SoriE,SoriI]],dtype=np.float32)
+
+    sW2 = sW**2
+
+    if prms.get('mult_tau',True):
+        muW = tau[:,None]*W*Ks
+        SigW = tau[:,None]**2*W**2*Ks
+        muWb = tau[:,None]*W*Kbs
+        SigWb = tau[:,None]**2*W**2*Kbs
+        muHb = tau*Hb
+        muHp = tau*Hp
+    else:
+        muW = W*Ks
+        SigW = W**2*Ks
+        muWb = W*Kbs
+        SigWb = W**2*Kbs
+        muHb = Hb
+        muHp = Hp
+
+    sr = np.asarray(sr)
+    sCr = np.asarray(sCr)
+
+    muWs = _two_site_muW(muW,muWb,sW2,sr,L)
+    SigWs = _two_site_SigW(SigW,SigWb,sW2,sCr,L)
+
+    SigHb = ((muHb*eH)**2)[:,None]
+    SigHp = ((muHp*eH)**2)[:,None]
+    SigHb = np.concatenate([SigHb,np.repeat(SigHb[:,-1:],Nsav-1,axis=1)],axis=1)
+    SigHp = np.concatenate([SigHp,np.repeat(SigHp[:,-1:],Nsav-1,axis=1)],axis=1)
+
+    muHs = np.concatenate([muHb,muHp])
+    SigHs = np.concatenate([SigHb,SigHp],axis=0)
+    taus = np.concatenate([tau,tau])
+
+    if res_dir is None:
+        FE,FI,ME,MI,CE,CI = rc.FE,rc.FI,rc.ME,rc.MI,rc.CE,rc.CI
+        if which in ('opto','both'):
+            FL,ML,CL = rc.get_opto_moments(prms['L'],prms['CVL'])
+    else:
+        FE,FI,ME,MI,CE,CI = base_itp_moments(res_dir)
+        if which in ('opto','both'):
+            FL,ML,CL = opto_itp_moments(res_dir,prms['L'],prms['CVL'])
+
+    def base_M(mui,Sigii,out):
+        out[0] = ME(mui[0],Sigii[0])[0]
+        out[1] = MI(mui[1],Sigii[1])[0]
+        out[2] = ME(mui[2],Sigii[2])[0]
+        out[3] = MI(mui[3],Sigii[3])[0]
+
+    def base_C(mui,Sigii,Sigij,out):
+        out[0] = CE(mui[0],Sigii[0],Sigij[0])[0]
+        out[1] = CI(mui[1],Sigii[1],Sigij[1])[0]
+        out[2] = CE(mui[2],Sigii[2],Sigij[2])[0]
+        out[3] = CI(mui[3],Sigii[3],Sigij[3])[0]
+
+    def opto_M(mui,Sigii,out):
+        out[0] = ML(mui[0],Sigii[0])[0]
+        out[1] = MI(mui[1],Sigii[1])[0]
+        out[2] = ML(mui[2],Sigii[2])[0]
+        out[3] = MI(mui[3],Sigii[3])[0]
+
+    def opto_C(mui,Sigii,Sigij,out):
+        out[0] = CL(mui[0],Sigii[0],Sigij[0])[0]
+        out[1] = CI(mui[1],Sigii[1],Sigij[1])[0]
+        out[2] = CL(mui[2],Sigii[2],Sigij[2])[0]
+        out[3] = CI(mui[3],Sigii[3],Sigij[3])[0]
+
+    start = time.process_time()
+
+    if which=='base':
+        full_r,full_Cr,conv = gauss_dmft(taus,muWs,SigWs,muHs,SigHs,base_M,base_C,Twrm,Tsav,dt)
+    elif which=='opto':
+        full_r,full_Cr,conv = gauss_dmft(taus,muWs,SigWs,muHs,SigHs,opto_M,opto_C,Twrm,Tsav,dt)
+    elif which=='both':
+        full_r,full_Cr,conv = doub_gauss_dmft(taus,muWs,SigWs,muHs,SigHs,[base_M,opto_M],[base_C,opto_C],
+                                              Twrm,Tsav,dt)
+    else:
+        raise NotImplementedError('Only implemented options for \'which\' keyword are: \'base\', \'opto\', and \'both\'')
+
+    print('integrating first stage took',time.process_time() - start,'s')
+
+    # extract predicted moments after long time evolution
+    r = full_r[:,-1]
+    Cr = full_Cr[:,-1,-1:-Nsav-1:-1]
+
+    if which in ('base','opto'):
+        mu = muWs@r + muHs
+        Sig = SigWs@Cr + SigHs
+        b_idx = np.array([0,1])
+    else:
+        mu = doub_mat(muWs)@r + doub_vec(muHs)
+        Sig = doub_mat(SigWs)@Cr + np.concatenate([SigHs,SigHs],axis=0)
+        b_idx = np.array([0,1,4,5])
+    p_idx = b_idx + 2
+    conv = np.asarray(conv)
+
+    res_dict = {}
+
+    res_dict['rb'] = r[b_idx]
+    res_dict['rp'] = r[p_idx]
+    res_dict['sr'] = sr
+    res_dict['Crb'] = Cr[b_idx]
+    res_dict['Crp'] = Cr[p_idx]
+    res_dict['sCr'] = sCr[:,None]
+
+    res_dict['mub'] = mu[b_idx]
+    res_dict['mup'] = mu[p_idx]
+    res_dict['Sigb'] = Sig[b_idx]
+    res_dict['Sigp'] = Sig[p_idx]
+
+    res_dict['convb'] = conv[b_idx]
+    res_dict['convp'] = conv[p_idx]
+
+    if return_full:
+        res_dict['full_r'] = full_r
+        res_dict['full_Cr'] = full_Cr
+
+    return res_dict
+
+def run_second_stage_two_site_dmft(first_res_dict,prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,L=180,return_full=False):
+    Nsav = round(Tsav/dt)+1
+
+    K = prms['K']
+    SoriE = prms['SoriE']
+    SoriI = prms['SoriI']
+    J = prms['J']
+    beta = prms['beta']
+    gE = prms['gE']
+    gI = prms['gI']
+    hE = prms['hE']
+    hI = prms['hI']
+    basefrac = prms.get('basefrac',0)
+    baseinp = prms.get('baseinp',0)
+    baseprob = prms.get('baseprob',0)
+
+    tau = np.array([rc.tE,rc.tI],dtype=np.float32)
+    W = J*np.array([[1,-gE],[1./beta,-gI/beta]],dtype=np.float32)
+    Ks =    (1-basefrac)*(1-baseprob) *np.array([K,K/4],dtype=np.float32)
+    Kbs =(1-(1-basefrac)*(1-baseprob))*np.array([K,K/4],dtype=np.float32)
+    Hb = rX*(1+(1-(1-basefrac)*(1-baseinp))*cA)*K*J*np.array([hE,hI/beta],dtype=np.float32)
+    Hp = rX*(1+                             cA)*K*J*np.array([hE,hI/beta],dtype=np.float32)
+    eH = CVh
+    sW = np.array([[SoriE,SoriI],[SoriE,SoriI]],dtype=np.float32)
+
+    sW2 = sW**2
+
+    if prms.get('mult_tau',True):
+        muW = tau[:,None]*W*Ks
+        SigW = tau[:,None]**2*W**2*Ks
+        muWb = tau[:,None]*W*Kbs
+        SigWb = tau[:,None]**2*W**2*Kbs
+        muHb = tau*Hb
+        muHp = tau*Hp
+    else:
+        muW = W*Ks
+        SigW = W**2*Ks
+        muWb = W*Kbs
+        SigWb = W**2*Kbs
+        muHb = Hb
+        muHp = Hp
+
+    sr = np.asarray(sr)
+    sCr = np.asarray(sCr)
+    sCdr = np.asarray(sCdr)
+
+    muWs = _two_site_muW(muW,muWb,sW2,sr,L)
+    SigWs = _two_site_SigW(SigW,SigWb,sW2,sCr,L)
+    SigdWs = _two_site_SigW(SigW,SigWb,sW2,sCdr,L)
+
+    SigHb = ((muHb*eH)**2)[:,None]
+    SigHp = ((muHp*eH)**2)[:,None]
+    SigHb = np.concatenate([SigHb,np.repeat(SigHb[:,-1:],Nsav-1,axis=1)],axis=1)
+    SigHp = np.concatenate([SigHp,np.repeat(SigHp[:,-1:],Nsav-1,axis=1)],axis=1)
+
+    muHs = np.concatenate([muHb,muHp])
+    SigHs = np.concatenate([SigHb,SigHp],axis=0)
+    taus = np.concatenate([tau,tau])
+
+    FE,FI,ME,MI,CE,CI = base_itp_moments(res_dir)
+    FL,ML,CL = opto_itp_moments(res_dir,prms['L'],prms['CVL'])
+
+    def diff_R(mu1i,mu2i,Sig1ii,Sig2ii,kij,out):
+        out[0] = R_simp(ME,ML,mu1i[0],mu2i[0],Sig1ii[0],Sig2ii[0],kij[0])
+        out[1] = R_simp(MI,MI,mu1i[1],mu2i[1],Sig1ii[1],Sig2ii[1],kij[1])
+        out[2] = R_simp(ME,ML,mu1i[2],mu2i[2],Sig1ii[2],Sig2ii[2],kij[2])
+        out[3] = R_simp(MI,MI,mu1i[3],mu2i[3],Sig1ii[3],Sig2ii[3],kij[3])
+
+    # first stage layout is [base b, base p, opto b, opto p], each with E and I
+    rb = first_res_dict['rb']
+    rp = first_res_dict['rp']
+    Crb = first_res_dict['Crb']
+    Crp = first_res_dict['Crp']
+    r = np.concatenate([rb[:2],rp[:2],rb[2:],rp[2:]])
+    Cr = np.concatenate([Crb[:2],Crp[:2],Crb[2:],Crp[2:]],axis=0)
+
+    mu = doub_mat(muWs)@r + doub_vec(muHs)
+
+    start = time.process_time()
+
+    full_Cdr,convd = diff_gauss_dmft(taus,muWs,SigWs,muHs,SigHs,diff_R,Twrm,Tsav,dt,r,Cr,SigdW=SigdWs)
+
+    print('integrating second stage took',time.process_time() - start,'s')
+
+    # extract predicted moments after long time evolution
+    dr = r[4:] - r[:4]
+    Cdr = full_Cdr[:,-1,-1:-Nsav-1:-1]
+
+    dmu = mu[4:] - mu[:4]
+    Sigd = SigdWs@Cdr
+
+    res_dict = {}
+
+    res_dict['drb'] = dr[:2]
+    res_dict['drp'] = dr[2:]
+    res_dict['Cdrb'] = Cdr[:2]
+    res_dict['Cdrp'] = Cdr[2:]
+    res_dict['sCdr'] = sCdr[:,None]
+
+    res_dict['dmub'] = dmu[:2]
+    res_dict['dmup'] = dmu[2:]
+    res_dict['Sigdb'] = Sigd[:2]
+    res_dict['Sigdp'] = Sigd[2:]
+
+    res_dict['convdb'] = convd[:2]
+    res_dict['convdp'] = convd[2:]
+
+    if return_full:
+        res_dict['full_Cdr'] = full_Cdr
+
+    return res_dict
+
+def run_two_stage_two_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,L=180,return_full=False):
+    res_dict = run_first_stage_two_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,L=L,which='both',
+                                             return_full=return_full)
+    res_dict.update(run_second_stage_two_site_dmft(res_dict,prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,L=L,
+                                                   return_full=return_full))
+    return res_dict
+
+def _three_site_W(W,Wb,sW2,s,dori=45,L=180):
+    # couplings between sites [b, p1, p2] (p1 at 0, p2 at -dori), each with E and I; s is the width (E,I)
+    # of the presynaptic profile, so this builds muW from (muW,muWb,sr) or SigW from (SigW,SigWb,sCr)
+    s = np.asarray(s)[:2]
+    xpeaks = np.array([0,-dori])
+    Oinv = inv_overlap(xpeaks,s[:,None]) # [j,k,m]
+    sWs = np.sqrt(sW2+s**2)
+
+    # distance from each site (b, p1, p2) to each peak (0, -dori)
+    dists = [[L/2,L/2],[0,dori],[dori,0]]
+    F = np.array([[struct_fact(d,sWs,s,L)*W + unstruct_fact(s,L)*Wb for d in site_dists] for site_dists in dists]) # [site,k,i,j]
+
+    peak_coef = np.einsum('skij,jkm->smij',F,Oinv)
+    base_coef = (W+Wb)[None,:,:] - np.einsum('skij,jk->sij',F,Oinv.sum(-1))
+
+    Ws = np.zeros((3,2,3,2))
+    Ws[:,:,0,:] = base_coef
+    Ws[:,:,1:,:] = np.einsum('smij->simj',peak_coef)
+    return Ws.reshape(6,6)
+
+def run_first_stage_three_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,dori=45,L=180,which='both',
+                                    return_full=False):
+    Nsav = round(Tsav/dt)+1
+
+    K = prms['K']
+    SoriE = prms['SoriE']
+    SoriI = prms['SoriI']
+    SoriF = prms['SoriF']
+    J = prms['J']
+    beta = prms['beta']
+    gE = prms['gE']
+    gI = prms['gI']
+    hE = prms['hE']
+    hI = prms['hI']
+    basefrac = prms.get('basefrac',0)
+    baseinp = prms.get('baseinp',0)
+    baseprob = prms.get('baseprob',0)
+    Hpert = prms.get('pert',np.zeros(2,dtype=np.float32))
+
+    tau = np.array([rc.tE,rc.tI],dtype=np.float32)
+    W = J*np.array([[1,-gE],[1./beta,-gI/beta]],dtype=np.float32)
+    Ks =    (1-basefrac)*(1-baseprob) *np.array([K,K/4],dtype=np.float32)
+    Kbs =(1-(1-basefrac)*(1-baseprob))*np.array([K,K/4],dtype=np.float32)
+    Hb = rX*(1+(1-(1-basefrac)*(1-baseinp))*cA)*K*J*np.array([hE,hI/beta],dtype=np.float32) + Hpert
+    Hp = rX*(1+                             cA)*K*J*np.array([hE,hI/beta],dtype=np.float32) + Hpert
+    eH = CVh
+    sW = np.array([[SoriE,SoriI],[SoriE,SoriI]],dtype=np.float32)
+    sH = np.array([SoriF,SoriF],dtype=np.float32)
+
+    sW2 = sW**2
+
+    if prms.get('mult_tau',True):
+        muW = tau[:,None]*W*Ks
+        SigW = tau[:,None]**2*W**2*Ks
+        muWb = tau[:,None]*W*Kbs
+        SigWb = tau[:,None]**2*W**2*Kbs
+        muHb = tau*Hb
+        muHp = tau*(Hp+(Hp-Hb)*basesubwrapnorm(dori,sH,L))
+    else:
+        muW = W*Ks
+        SigW = W**2*Ks
+        muWb = W*Kbs
+        SigWb = W**2*Kbs
+        muHb = Hb
+        muHp = Hp+(Hp-Hb)*basesubwrapnorm(dori,sH,L)
+
+    sr = np.asarray(sr)
+    sCr = np.asarray(sCr)
+
+    muWs = _three_site_W(muW,muWb,sW2,sr,dori,L)
+    SigWs = _three_site_W(SigW,SigWb,sW2,sCr,dori,L)
+
+    SigHb = ((muHb*eH)**2)[:,None]
+    SigHp = ((muHp*eH)**2)[:,None]
+    SigHb = np.concatenate([SigHb,np.repeat(SigHb[:,-1:],Nsav-1,axis=1)],axis=1)
+    SigHp = np.concatenate([SigHp,np.repeat(SigHp[:,-1:],Nsav-1,axis=1)],axis=1)
+
+    muHs = np.concatenate([muHb,muHp,muHp])
+    SigHs = np.concatenate([SigHb,SigHp,SigHp],axis=0)
+    taus = np.concatenate([tau,tau,tau])
+
+    if res_dir is None:
+        FE,FI,ME,MI,CE,CI = rc.FE,rc.FI,rc.ME,rc.MI,rc.CE,rc.CI
+        if which in ('opto','both'):
+            FL,ML,CL = rc.get_opto_moments(prms['L'],prms['CVL'])
+    else:
+        FE,FI,ME,MI,CE,CI = base_itp_moments(res_dir)
+        if which in ('opto','both'):
+            FL,ML,CL = opto_itp_moments(res_dir,prms['L'],prms['CVL'])
+
+    def base_M(mui,Sigii,out):
+        for s in range(3):
+            out[2*s] = ME(mui[2*s],Sigii[2*s])[0]
+            out[2*s+1] = MI(mui[2*s+1],Sigii[2*s+1])[0]
+
+    def base_C(mui,Sigii,Sigij,out):
+        for s in range(3):
+            out[2*s] = CE(mui[2*s],Sigii[2*s],Sigij[2*s])[0]
+            out[2*s+1] = CI(mui[2*s+1],Sigii[2*s+1],Sigij[2*s+1])[0]
+
+    def opto_M(mui,Sigii,out):
+        for s in range(3):
+            out[2*s] = ML(mui[2*s],Sigii[2*s])[0]
+            out[2*s+1] = MI(mui[2*s+1],Sigii[2*s+1])[0]
+
+    def opto_C(mui,Sigii,Sigij,out):
+        for s in range(3):
+            out[2*s] = CL(mui[2*s],Sigii[2*s],Sigij[2*s])[0]
+            out[2*s+1] = CI(mui[2*s+1],Sigii[2*s+1],Sigij[2*s+1])[0]
+
+    start = time.process_time()
+
+    if which=='base':
+        full_r,full_Cr,conv = gauss_dmft(taus,muWs,SigWs,muHs,SigHs,base_M,base_C,Twrm,Tsav,dt)
+    elif which=='opto':
+        full_r,full_Cr,conv = gauss_dmft(taus,muWs,SigWs,muHs,SigHs,opto_M,opto_C,Twrm,Tsav,dt)
+    elif which=='both':
+        full_r,full_Cr,conv = doub_gauss_dmft(taus,muWs,SigWs,muHs,SigHs,[base_M,opto_M],[base_C,opto_C],
+                                              Twrm,Tsav,dt)
+    else:
+        raise NotImplementedError('Only implemented options for \'which\' keyword are: \'base\', \'opto\', and \'both\'')
+
+    print('integrating first stage took',time.process_time() - start,'s')
+
+    # extract predicted moments after long time evolution
+    r = full_r[:,-1]
+    Cr = full_Cr[:,-1,-1:-Nsav-1:-1]
+
+    if which in ('base','opto'):
+        mu = muWs@r + muHs
+        Sig = SigWs@Cr + SigHs
+        b_idx = np.array([0,1])
+    else:
+        mu = doub_mat(muWs)@r + doub_vec(muHs)
+        Sig = doub_mat(SigWs)@Cr + np.concatenate([SigHs,SigHs],axis=0)
+        b_idx = np.array([0,1,6,7])
+    p1_idx = b_idx + 2
+    p2_idx = b_idx + 4
+    conv = np.asarray(conv)
+
+    res_dict = {}
+
+    res_dict['rb'] = r[b_idx]
+    res_dict['rp'] = r[p1_idx]
+    res_dict['rp2'] = r[p2_idx]
+    res_dict['sr'] = sr
+    res_dict['Crb'] = Cr[b_idx]
+    res_dict['Crp'] = Cr[p1_idx]
+    res_dict['Crp2'] = Cr[p2_idx]
+    res_dict['sCr'] = sCr[:,None]
+
+    res_dict['mub'] = mu[b_idx]
+    res_dict['mup'] = mu[p1_idx]
+    res_dict['mup2'] = mu[p2_idx]
+    res_dict['Sigb'] = Sig[b_idx]
+    res_dict['Sigp'] = Sig[p1_idx]
+    res_dict['Sigp2'] = Sig[p2_idx]
+
+    res_dict['convb'] = conv[b_idx]
+    res_dict['convp'] = conv[p1_idx]
+    res_dict['convp2'] = conv[p2_idx]
+
+    if return_full:
+        res_dict['full_r'] = full_r
+        res_dict['full_Cr'] = full_Cr
+
+    return res_dict
+
+def run_second_stage_three_site_dmft(first_res_dict,prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,dori=45,L=180,
+                                     return_full=False):
+    Nsav = round(Tsav/dt)+1
+
+    K = prms['K']
+    SoriE = prms['SoriE']
+    SoriI = prms['SoriI']
+    SoriF = prms['SoriF']
+    J = prms['J']
+    beta = prms['beta']
+    gE = prms['gE']
+    gI = prms['gI']
+    hE = prms['hE']
+    hI = prms['hI']
+    basefrac = prms.get('basefrac',0)
+    baseinp = prms.get('baseinp',0)
+    baseprob = prms.get('baseprob',0)
+
+    tau = np.array([rc.tE,rc.tI],dtype=np.float32)
+    W = J*np.array([[1,-gE],[1./beta,-gI/beta]],dtype=np.float32)
+    Ks =    (1-basefrac)*(1-baseprob) *np.array([K,K/4],dtype=np.float32)
+    Kbs =(1-(1-basefrac)*(1-baseprob))*np.array([K,K/4],dtype=np.float32)
+    Hb = rX*(1+(1-(1-basefrac)*(1-baseinp))*cA)*K*J*np.array([hE,hI/beta],dtype=np.float32)
+    Hp = rX*(1+                             cA)*K*J*np.array([hE,hI/beta],dtype=np.float32)
+    eH = CVh
+    sW = np.array([[SoriE,SoriI],[SoriE,SoriI]],dtype=np.float32)
+    sH = np.array([SoriF,SoriF],dtype=np.float32)
+
+    sW2 = sW**2
+
+    if prms.get('mult_tau',True):
+        muW = tau[:,None]*W*Ks
+        SigW = tau[:,None]**2*W**2*Ks
+        muWb = tau[:,None]*W*Kbs
+        SigWb = tau[:,None]**2*W**2*Kbs
+        muHb = tau*Hb
+        muHp = tau*(Hp+(Hp-Hb)*basesubwrapnorm(dori,sH,L))
+    else:
+        muW = W*Ks
+        SigW = W**2*Ks
+        muWb = W*Kbs
+        SigWb = W**2*Kbs
+        muHb = Hb
+        muHp = Hp+(Hp-Hb)*basesubwrapnorm(dori,sH,L)
+
+    sr = np.asarray(sr)
+    sCr = np.asarray(sCr)
+    sCdr = np.asarray(sCdr)
+
+    muWs = _three_site_W(muW,muWb,sW2,sr,dori,L)
+    SigWs = _three_site_W(SigW,SigWb,sW2,sCr,dori,L)
+    SigdWs = _three_site_W(SigW,SigWb,sW2,sCdr,dori,L)
+
+    SigHb = ((muHb*eH)**2)[:,None]
+    SigHp = ((muHp*eH)**2)[:,None]
+    SigHb = np.concatenate([SigHb,np.repeat(SigHb[:,-1:],Nsav-1,axis=1)],axis=1)
+    SigHp = np.concatenate([SigHp,np.repeat(SigHp[:,-1:],Nsav-1,axis=1)],axis=1)
+
+    muHs = np.concatenate([muHb,muHp,muHp])
+    SigHs = np.concatenate([SigHb,SigHp,SigHp],axis=0)
+    taus = np.concatenate([tau,tau,tau])
+
+    FE,FI,ME,MI,CE,CI = base_itp_moments(res_dir)
+    FL,ML,CL = opto_itp_moments(res_dir,prms['L'],prms['CVL'])
+
+    def diff_R(mu1i,mu2i,Sig1ii,Sig2ii,kij,out):
+        for s in range(3):
+            out[2*s] = R_simp(ME,ML,mu1i[2*s],mu2i[2*s],Sig1ii[2*s],Sig2ii[2*s],kij[2*s])
+            out[2*s+1] = R_simp(MI,MI,mu1i[2*s+1],mu2i[2*s+1],Sig1ii[2*s+1],Sig2ii[2*s+1],kij[2*s+1])
+
+    # first stage layout is [base b, base p1, base p2, opto b, opto p1, opto p2], each with E and I
+    rb = first_res_dict['rb']
+    rp = first_res_dict['rp']
+    rp2 = first_res_dict['rp2']
+    Crb = first_res_dict['Crb']
+    Crp = first_res_dict['Crp']
+    Crp2 = first_res_dict['Crp2']
+    r = np.concatenate([rb[:2],rp[:2],rp2[:2],rb[2:],rp[2:],rp2[2:]])
+    Cr = np.concatenate([Crb[:2],Crp[:2],Crp2[:2],Crb[2:],Crp[2:],Crp2[2:]],axis=0)
+
+    mu = doub_mat(muWs)@r + doub_vec(muHs)
+
+    start = time.process_time()
+
+    full_Cdr,convd = diff_gauss_dmft(taus,muWs,SigWs,muHs,SigHs,diff_R,Twrm,Tsav,dt,r,Cr,SigdW=SigdWs)
+
+    print('integrating second stage took',time.process_time() - start,'s')
+
+    # extract predicted moments after long time evolution
+    dr = r[6:] - r[:6]
+    Cdr = full_Cdr[:,-1,-1:-Nsav-1:-1]
+
+    dmu = mu[6:] - mu[:6]
+    Sigd = SigdWs@Cdr
+
+    res_dict = {}
+
+    res_dict['drb'] = dr[:2]
+    res_dict['drp'] = dr[2:4]
+    res_dict['drp2'] = dr[4:]
+    res_dict['Cdrb'] = Cdr[:2]
+    res_dict['Cdrp'] = Cdr[2:4]
+    res_dict['Cdrp2'] = Cdr[4:]
+    res_dict['sCdr'] = sCdr[:,None]
+
+    res_dict['dmub'] = dmu[:2]
+    res_dict['dmup'] = dmu[2:4]
+    res_dict['dmup2'] = dmu[4:]
+    res_dict['Sigdb'] = Sigd[:2]
+    res_dict['Sigdp'] = Sigd[2:4]
+    res_dict['Sigdp2'] = Sigd[4:]
+
+    res_dict['convdb'] = convd[:2]
+    res_dict['convdp'] = convd[2:4]
+    res_dict['convdp2'] = convd[4:]
+
+    if return_full:
+        res_dict['full_Cdr'] = full_Cdr
+
+    return res_dict
+
+def run_two_stage_three_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,dori=45,L=180,return_full=False):
+    res_dict = run_first_stage_three_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,dori=dori,L=L,which='both',
+                                               return_full=return_full)
+    res_dict.update(run_second_stage_three_site_dmft(res_dict,prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,sr,sCr,sCdr,
+                                                     dori=dori,L=L,return_full=return_full))
+    return res_dict
+
 def run_decoupled_three_site_dmft(prms,rX,cA,CVh,res_dir,rc,Twrm,Tsav,dt,dori=45,L=180,
                                   struct_dict=None,which='both',couple_peaks=False,return_full=False):
     Nsav = round(Tsav/dt)+1
